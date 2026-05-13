@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { CURATED_RESULTS } from "../services/searchService";
+import { logArticleRead } from "../services/interactionService";
 import sdLogo from "../images/sciencedirect-logo-vector.png";
 import elsevierLogo from "../images/Elsevier_logo_2019.svg";
 import guardianLogo from "../images/the-guardian-logo.jpg";
@@ -680,6 +681,15 @@ const ArticlePage = () => {
     const { id } = useParams();
     const idx = parseInt(id, 10) - 1;
     const res = CURATED_RESULTS[idx];
+
+    useEffect(() => {
+        if (!res) return;
+        const startTime = Date.now();
+        return () => {
+            const duration = Date.now() - startTime;
+            logArticleRead(res.id, duration);
+        };
+    }, [res]);
 
     if (!res) {
         return (

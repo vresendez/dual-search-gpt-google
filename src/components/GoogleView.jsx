@@ -1,9 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { CHATGPT_SUMMARY } from "../services/searchService";
 import { Link } from "react-router-dom";
+import { logHover, logResultClick } from "../services/interactionService";
 
 const GoogleView = ({ onSearch, results, loading, query, setQuery }) => {
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = React.useState(results.length > 0);
+  const hoverTimers = useRef({});
+
+  React.useEffect(() => {
+    if (results.length > 0) setHasSearched(true);
+  }, [results]);
+
+  const handleMouseEnter = (res) => {
+    hoverTimers.current[res.id] = Date.now();
+  };
+
+  const handleMouseLeave = (res) => {
+    const startTime = hoverTimers.current[res.id];
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      logHover(res.id, res.title, duration);
+      delete hoverTimers.current[res.id];
+    }
+  };
+
+  const handleResultClick = (res, index) => {
+    logResultClick(res.id, res.title, res.source, index + 1);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -146,7 +169,9 @@ const GoogleView = ({ onSearch, results, loading, query, setQuery }) => {
             {loading && <div className="loading-spinner">Searching...</div>}
             {!loading &&
               results.map((res, i) => (
-                <div key={res.id} className="result-item">
+                <div key={res.id} className="result-item"
+                     onMouseEnter={() => handleMouseEnter(res)}
+                     onMouseLeave={() => handleMouseLeave(res)}>
                   <div className="res-header">
                     <div className="res-favicon">
                       {res.source.charAt(0).toUpperCase()}
@@ -160,7 +185,7 @@ const GoogleView = ({ onSearch, results, loading, query, setQuery }) => {
                       </span>
                     </div>
                   </div>
-                  <Link to={res.url} className="res-links-block">
+                  <Link to={res.url} className="res-links-block" onClick={() => handleResultClick(res, i)}>
                     <h3 className="res-title">{res.title}</h3>
                   </Link>
                   <p className="res-snippet">

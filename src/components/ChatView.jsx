@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { CHATGPT_SUMMARY } from "../services/searchService";
+import { logHover, logResultClick } from "../services/interactionService";
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 
@@ -16,16 +18,14 @@ const RichText = ({ text, sources }) => {
           const n = parseInt(citeMatch[1], 10);
           const src = sources?.[n - 1];
           return (
-            <a
+            <Link
               key={i}
-              href={src?.url ?? "#"}
-              target="_blank"
-              rel="noreferrer"
+              to={src?.url ?? "#"}
               className="cite-chip"
               title={src?.title ?? ""}
             >
               {n}
-            </a>
+            </Link>
           );
         }
         return <span key={i}>{part}</span>;
@@ -45,15 +45,13 @@ const SummaryBlock = ({ block, sources }) => {
           <li key={i}>
             <RichText text={item.text} sources={sources} />
             {item.cite != null && (
-              <a
-                href={sources?.[item.cite - 1]?.url ?? "#"}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                to={sources?.[item.cite - 1]?.url ?? "#"}
                 className="cite-chip"
                 title={sources?.[item.cite - 1]?.title ?? ""}
               >
                 {item.cite}
-              </a>
+              </Link>
             )}
           </li>
         ))}
@@ -66,27 +64,25 @@ const SummaryBlock = ({ block, sources }) => {
       <RichText text={block.text} sources={sources} />
       {Array.isArray(block.cite) &&
         block.cite.map((n) => (
-          <a
+          <Link
             key={n}
-            href={sources?.[n - 1]?.url ?? "#"}
-            target="_blank"
-            rel="noreferrer"
+            to={sources?.[n - 1]?.url ?? "#"}
             className="cite-chip"
             title={sources?.[n - 1]?.title ?? ""}
           >
             {n}
-          </a>
+          </Link>
         ))}
     </p>
   );
 };
 
 /* ─── Word-by-word streaming hook ────────────────────────── */
-function useStreaming(active, sources) {
+function useStreaming(active, sources, skipStream = false) {
   const blocks = CHATGPT_SUMMARY;
-  const [visibleCount, setVisibleCount] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(skipStream ? blocks.length : 0);
   const [charIndex, setCharIndex] = useState(0);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(skipStream);
 
   const currentBlock = blocks[visibleCount];
   const currentBlockText = React.useMemo(() => {
@@ -100,10 +96,16 @@ function useStreaming(active, sources) {
 
   useEffect(() => {
     if (!active) return;
+    if (skipStream) {
+      setVisibleCount(blocks.length);
+      setCharIndex(0);
+      setDone(true);
+      return;
+    }
     setVisibleCount(0);
     setCharIndex(0);
     setDone(false);
-  }, [active]);
+  }, [active, skipStream, blocks.length]);
 
   useEffect(() => {
     if (!active || done) return;
@@ -159,15 +161,13 @@ const StreamingBlock = ({ block, chars, sources }) => {
           if (cm) {
             const n = parseInt(cm[1], 10);
             return (
-              <a
+              <Link
                 key={i}
-                href={sources?.[n - 1]?.url ?? "#"}
-                target="_blank"
-                rel="noreferrer"
+                to={sources?.[n - 1]?.url ?? "#"}
                 className="cite-chip"
               >
                 {n}
-              </a>
+              </Link>
             );
           }
           return <span key={i}>{part}</span>;
@@ -200,14 +200,12 @@ const StreamingBlock = ({ block, chars, sources }) => {
               )}
               {isLast && <span className="gpt-cursor" />}
               {isComplete && origItem?.cite != null && (
-                <a
-                  href={sources?.[origItem.cite - 1]?.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
+                <Link
+                  to={sources?.[origItem.cite - 1]?.url ?? "#"}
                   className="cite-chip"
                 >
                   {origItem.cite}
-                </a>
+                </Link>
               )}
             </li>
           );
@@ -221,13 +219,45 @@ const StreamingBlock = ({ block, chars, sources }) => {
 
 /* ─── Main Component ──────────────────────────────────────── */
 const ChatView = ({ onSearch, results, loading, query, setQuery }) => {
-  const [submitted, setSubmitted] = useState(false);
-  const [lastQuery, setLastQuery] = useState("");
+  const [submitted, setSubmitted] = useState(results.length > 0);
+  const [lastQuery, setLastQuery] = useState(query || "");
+
+  useEffect(() => {
+    if (results.length > 0) {
+      setSubmitted(true);
+      if (query) setLastQuery(query);
+    }
+  }, [results, query]);
   const chatEndRef = useRef(null);
+  const hoverTimers = useRef({});
+
+  const handleMouseEnter = (src) => {
+    hoverTimers.current[src.id] = Date.now();
+  };
+
+  const handleMouseLeave = (src) => {
+    const startTime = hoverTimers.current[src.id];
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      logHover(src.id, src.title, duration);
+      delete hoverTimers.current[src.id];
+    }
+  };
+
+  const handleResultClick = (src, index) => {
+    logResultClick(src.id, src.title, src.source, index + 1);
+  };
+
+  const isInitialMountWithResults = useRef(results.length > 0 && !loading);
+  useEffect(() => {
+    if (loading) {
+      isInitialMountWithResults.current = false;
+    }
+  }, [loading]);
 
   const streamActive = results.length > 0 && !loading;
   const { fullyRevealedBlocks, streamingBlock, streamingChars, done } =
-    useStreaming(streamActive, results);
+    useStreaming(streamActive, results, isInitialMountWithResults.current);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -239,6 +269,7 @@ const ChatView = ({ onSearch, results, loading, query, setQuery }) => {
     setLastQuery(query);
     setSubmitted(true);
     onSearch(query);
+    setQuery("");
   };
 
   const recentChats = [
@@ -363,12 +394,13 @@ const ChatView = ({ onSearch, results, loading, query, setQuery }) => {
                               gap: "12px",
                             }}
                           >
-                            {results.map((src) => (
-                              <a
+                            {results.map((src, i) => (
+                              <Link
                                 key={src.id}
-                                href={src.url}
-                                target="_blank"
-                                rel="noreferrer"
+                                to={src.url}
+                                onMouseEnter={() => handleMouseEnter(src)}
+                                onMouseLeave={() => handleMouseLeave(src)}
+                                onClick={() => handleResultClick(src, i)}
                                 style={{
                                   textDecoration: "none",
                                   fontSize: "14px",
@@ -386,7 +418,7 @@ const ChatView = ({ onSearch, results, loading, query, setQuery }) => {
                                 <span style={{ color: "#0d0d0d" }}>
                                   {src.title}
                                 </span>
-                              </a>
+                              </Link>
                             ))}
                           </div>
                         </div>
