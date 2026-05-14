@@ -52,8 +52,9 @@ function App() {
 
   const participantId = pathPid || searchParams.get('pid') || storedState?.participantId || 'anonymous';
   const condition = pathCondition || searchParams.get('condition') || storedState?.condition || 'none';
-  // Capture return URL or referrer to reconnect to the correct survey session
-  const returnUrl = searchParams.get('returnUrl') || storedState?.returnUrl || (document.referrer.includes('qualtrics.com') ? document.referrer : null);
+  // Capture explicit returnUrl if provided in the URL, otherwise we construct it.
+  // We avoid document.referrer because cross-origin policies strip the path, resulting in 'https://[brand].qualtrics.com/' which redirects to login.
+  const returnUrl = searchParams.get('returnUrl') || storedState?.returnUrl || null;
   
   const hasConsented = storedState?.hasConsented || false;
   const sessionInfo = storedState?.sessionInfo || null;
