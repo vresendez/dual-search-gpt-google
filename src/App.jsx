@@ -52,6 +52,9 @@ function App() {
 
   const participantId = pathPid || searchParams.get('pid') || storedState?.participantId || 'anonymous';
   const condition = pathCondition || searchParams.get('condition') || storedState?.condition || 'none';
+  // Capture return URL or referrer to reconnect to the correct survey session
+  const returnUrl = searchParams.get('returnUrl') || storedState?.returnUrl || (document.referrer.includes('qualtrics.com') ? document.referrer : null);
+  
   const hasConsented = storedState?.hasConsented || false;
   const sessionInfo = storedState?.sessionInfo || null;
   const interactionCount = storedState?.interactionCount || 0;
@@ -92,11 +95,11 @@ function App() {
       hasRedirected.current = true;
       const autoFinish = async () => {
         await finalizeSession(interactionCount);
-        redirectToQualtrics(participantId);
+        redirectToQualtrics(participantId, condition, storedState?.returnUrl);
       };
       autoFinish();
     }
-  }, [timeLeft, sessionInfo, interactionCount, participantId]);
+  }, [timeLeft, sessionInfo, interactionCount, participantId, condition, storedState?.returnUrl]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -143,7 +146,7 @@ function App() {
     if (sessionInfo) {
       setIsFinishing(true);
       await finalizeSession(interactionCount);
-      redirectToQualtrics(participantId);
+      redirectToQualtrics(participantId, condition, storedState?.returnUrl);
     }
   };
 
@@ -151,6 +154,7 @@ function App() {
     saveStoredState({
       participantId,
       condition,
+      returnUrl,
       hasConsented: true,
       endTime: Date.now() + 20 * 60 * 1000,
       interactionCount: 0
