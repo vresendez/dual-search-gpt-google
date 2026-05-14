@@ -147,22 +147,9 @@ export const finalizeSession = async (interactionCount) => {
     return currentSessionInfo;
 };
 
-export const redirectToQualtrics = (participantId, condition, returnUrl) => {
-    if (returnUrl) {
-        console.log('[InteractionService] Reconnecting to return URL:', returnUrl);
-        window.location.href = returnUrl;
-        return;
-    }
-
-    // If opened in a new tab directly from Qualtrics, closing the tab might be the best way to return
-    if (window.history.length <= 2) {
-        console.log('[InteractionService] Attempting to close tab...');
-        window.close();
-    }
-
-    const QUALTRICS_URL = 'https://utwentebs.eu.qualtrics.com/jfe/form/SV_4O5mxJVe10BbusK';
-    // Append the ID and condition so the user continues their assigned survey
+export const redirectToQualtrics = (participantId, condition) => {
+    const QUALTRICS_URL = 'https://utwentebs.eu.qualtrics.com/jfe/form/SV_1zzHU2TiPGB9Wdg';
     const redirectUrl = `${QUALTRICS_URL}?ID=${participantId}&condition=${condition}`;
-    console.log('[InteractionService] Redirecting to Qualtrics URL to reconnect:', redirectUrl);
+    console.log('[InteractionService] Redirecting to new Qualtrics survey:', redirectUrl);
     window.location.href = redirectUrl;
 };
